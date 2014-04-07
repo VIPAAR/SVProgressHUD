@@ -23,11 +23,13 @@ NSString * const SVProgressHUDDidAppearNotification = @"SVProgressHUDDidAppearNo
 NSString * const SVProgressHUDStatusUserInfoKey = @"SVProgressHUDStatusUserInfoKey";
 
 static UIColor *SVProgressHUDBackgroundColor;
-static UIColor *SVProgressHUDForegroundColor;
+static UIColor *SVProgressHUDRingColor;
+static UIColor *SVProgressHUDTextColor;
 static CGFloat SVProgressHUDRingThickness;
 static UIFont *SVProgressHUDFont;
 static UIImage *SVProgressHUDSuccessImage;
 static UIImage *SVProgressHUDErrorImage;
+static BOOL SVProgressHUDAdjustOffsetForKeyboard;
 
 static const CGFloat SVProgressHUDRingRadius = 18;
 static const CGFloat SVProgressHUDRingNoTextRadius = 24;
@@ -94,9 +96,14 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
     SVProgressHUDBackgroundColor = color;
 }
 
-+ (void)setForegroundColor:(UIColor *)color {
++ (void)setRingColor:(UIColor *)color {
     [self sharedView];
-    SVProgressHUDForegroundColor = color;
+    SVProgressHUDRingColor = color;
+}
+
++ (void)setTextColor:(UIColor *)color {
+    [self sharedView];
+    SVProgressHUDTextColor = color;
 }
 
 + (void)setFont:(UIFont *)font {
@@ -184,6 +191,11 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 
 #pragma mark - Offset
 
++ (void)setOffsetFromCenter:(UIOffset)offset adjustForKeyboard:(BOOL)adjustForKeyboard {
+    SVProgressHUDAdjustOffsetForKeyboard = adjustForKeyboard;
+    [self setOffsetFromCenter:offset];
+}
+
 + (void)setOffsetFromCenter:(UIOffset)offset {
     [self sharedView].offsetFromCenter = offset;
 }
@@ -204,10 +216,11 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
         self.activityCount = 0;
         
         SVProgressHUDBackgroundColor = [UIColor whiteColor];
-        SVProgressHUDForegroundColor = [UIColor blackColor];
-        SVProgressHUDFont = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
-        SVProgressHUDSuccessImage = [[UIImage imageNamed:@"SVProgressHUD.bundle/success"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-        SVProgressHUDErrorImage = [[UIImage imageNamed:@"SVProgressHUD.bundle/error"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        SVProgressHUDTextColor = [UIColor blackColor];
+        SVProgressHUDRingColor = [UIColor blackColor];
+        //SVProgressHUDFont = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+        SVProgressHUDSuccessImage = [UIImage imageNamed:@"SVProgressHUD.bundle/success"]; // imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        SVProgressHUDErrorImage = [UIImage imageNamed:@"SVProgressHUD.bundle/error"]; // imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         SVProgressHUDRingThickness = 4;
     }
 	
@@ -258,15 +271,15 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
     CGFloat stringHeight = 0;
     CGRect labelRect = CGRectZero;
     
-    NSString *string = self.stringLabel.text;
+    NSAttributedString *string = self.stringLabel.attributedText;
     // False if it's text-only
     BOOL imageUsed = (self.imageView.image) || (self.imageView.hidden);
     
     if(string) {
         CGSize constraintSize = CGSizeMake(200, 300);
+
         CGRect stringRect = [string boundingRectWithSize:constraintSize
                                                  options:(NSStringDrawingUsesFontLeading|NSStringDrawingTruncatesLastVisibleLine|NSStringDrawingUsesLineFragmentOrigin)
-                                              attributes:@{NSFontAttributeName: self.stringLabel.font}
                                                  context:NULL];
         stringWidth = stringRect.size.width;
         stringHeight = ceil(stringRect.size.height);
@@ -366,8 +379,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 }
 
 
-- (NSDictionary *)notificationUserInfo
-{
+- (NSDictionary *)notificationUserInfo {
     return (self.stringLabel.text ? @{SVProgressHUDStatusUserInfoKey : self.stringLabel.text} : nil);
 }
 
@@ -378,6 +390,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
     double animationDuration;
     
     UIInterfaceOrientation orientation = [[UIApplication sharedApplication] statusBarOrientation];
+    
     
     if(notification) {
         NSDictionary* keyboardInfo = [notification userInfo];
@@ -391,9 +404,11 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
                 keyboardHeight = keyboardFrame.size.width;
         } else
             keyboardHeight = 0;
+       
     } else {
         keyboardHeight = self.visibleKeyboardHeight;
     }
+    
     
     CGRect orientationFrame = [UIScreen mainScreen].bounds;
     CGRect statusBarFrame = [UIApplication sharedApplication].statusBarFrame;
@@ -410,10 +425,13 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
     
     CGFloat activeHeight = orientationFrame.size.height;
     
-    if(keyboardHeight > 0)
-        activeHeight += statusBarFrame.size.height*2;
+    if (SVProgressHUDAdjustOffsetForKeyboard) {
+        if(keyboardHeight > 0) {
+            activeHeight += statusBarFrame.size.height*2;
+        }
+        activeHeight -= keyboardHeight;
+    }
     
-    activeHeight -= keyboardHeight;
     CGFloat posY = floor(activeHeight*0.45);
     CGFloat posX = orientationFrame.size.width/2;
     
@@ -564,7 +582,9 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
     if(![self.class isVisible])
         [self.class show];
     
-    self.imageView.tintColor = SVProgressHUDForegroundColor;
+    if ([self.imageView respondsToSelector:@selector(setTintColor:)]) {
+        self.imageView.tintColor = SVProgressHUDRingColor;
+    }
     self.imageView.image = image;
     self.imageView.hidden = NO;
     
@@ -658,7 +678,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
         _indefiniteAnimatedLayer.contentsScale = [[UIScreen mainScreen] scale];
         _indefiniteAnimatedLayer.frame = rect;
         _indefiniteAnimatedLayer.fillColor = [UIColor clearColor].CGColor;
-        _indefiniteAnimatedLayer.strokeColor = SVProgressHUDForegroundColor.CGColor;
+        _indefiniteAnimatedLayer.strokeColor = SVProgressHUDRingColor.CGColor;
         _indefiniteAnimatedLayer.lineWidth = SVProgressHUDRingThickness;
         _indefiniteAnimatedLayer.lineCap = kCALineCapRound;
         _indefiniteAnimatedLayer.lineJoin = kCALineJoinBevel;
@@ -710,7 +730,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
         _ringLayer = [self createRingLayerWithCenter:center
                                               radius:SVProgressHUDRingRadius
                                            lineWidth:SVProgressHUDRingThickness
-                                               color:SVProgressHUDForegroundColor];
+                                               color:SVProgressHUDRingColor];
         [self.hudView.layer addSublayer:_ringLayer];
     }
     return _ringLayer;
@@ -722,7 +742,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
         _backgroundRingLayer = [self createRingLayerWithCenter:center
                                                         radius:SVProgressHUDRingRadius
                                                      lineWidth:SVProgressHUDRingThickness
-                                                         color:[SVProgressHUDForegroundColor colorWithAlphaComponent:0.1]];
+                                                         color:[SVProgressHUDRingColor colorWithAlphaComponent:0.1]];
         _backgroundRingLayer.strokeEnd = 1;
         [self.hudView.layer addSublayer:_backgroundRingLayer];
     }
@@ -809,8 +829,10 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
         effectY.minimumRelativeValue = @(-SVProgressHUDParallaxDepthPoints);
         effectY.maximumRelativeValue = @(SVProgressHUDParallaxDepthPoints);
         
-        [_hudView addMotionEffect: effectX];
-        [_hudView addMotionEffect: effectY];
+        if ([_hudView respondsToSelector:@selector(addMotionEffect:)]) {
+            [_hudView addMotionEffect: effectX];
+            [_hudView addMotionEffect: effectY];
+        }
         
         [self addSubview:_hudView];
     }
@@ -824,7 +846,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 		_stringLabel.adjustsFontSizeToFitWidth = YES;
         _stringLabel.textAlignment = NSTextAlignmentCenter;
 		_stringLabel.baselineAdjustment = UIBaselineAdjustmentAlignCenters;
-		_stringLabel.textColor = SVProgressHUDForegroundColor;
+		_stringLabel.textColor = SVProgressHUDTextColor;
 		_stringLabel.font = SVProgressHUDFont;
         _stringLabel.numberOfLines = 0;
     }
@@ -837,7 +859,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 
 - (UIImageView *)imageView {
     if (_imageView == nil)
-        _imageView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, 28, 28)];
+        _imageView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, 40, 40)];
     
     if(!_imageView.superview)
         [self.hudView addSubview:_imageView];

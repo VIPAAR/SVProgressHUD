@@ -32,7 +32,8 @@ typedef NSUInteger SVProgressHUDMaskType;
 #pragma mark - Customization
 
 + (void)setBackgroundColor:(UIColor*)color; // default is [UIColor whiteColor]
-+ (void)setForegroundColor:(UIColor*)color; // default is [UIColor blackColor]
++ (void)setRingColor:(UIColor *)color;
++ (void)setTextColor:(UIColor *)color;
 + (void)setRingThickness:(CGFloat)width; // default is 4 pt
 + (void)setFont:(UIFont*)font; // default is [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline]
 + (void)setSuccessImage:(UIImage*)image; // default is bundled success image from Glyphish
@@ -56,6 +57,7 @@ typedef NSUInteger SVProgressHUDMaskType;
 + (void)showErrorWithStatus:(NSString *)string;
 + (void)showImage:(UIImage*)image status:(NSString*)status; // use 28x28 white pngs
 
++ (void)setOffsetFromCenter:(UIOffset)offset adjustForKeyboard:(BOOL)adjustForKeyboard;
 + (void)setOffsetFromCenter:(UIOffset)offset;
 + (void)resetOffsetFromCenter;
 
